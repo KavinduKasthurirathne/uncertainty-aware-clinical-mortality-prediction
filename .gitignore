@@ -1,0 +1,9 @@
+mimic-iv-*/
+*.zip
+data/processed/
+outputs/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
