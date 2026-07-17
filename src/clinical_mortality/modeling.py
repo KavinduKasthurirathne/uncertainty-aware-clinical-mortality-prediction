@@ -26,17 +26,31 @@ from .evaluation import (
 NON_FEATURE_COLUMNS = {"subject_id", "hadm_id", "stay_id", "mortality", "split"}
 
 
+def _is_categorical(series: pd.Series) -> bool:
+    """Treat pandas object/string/category columns as categorical.
+
+    Parquet + pandas 3 often stores gender as dtype ``str``, not ``object``.
+    """
+    return (
+        pd.api.types.is_object_dtype(series)
+        or pd.api.types.is_string_dtype(series)
+        or isinstance(series.dtype, pd.CategoricalDtype)
+    )
+
+
 def _make_preprocessor(frame: pd.DataFrame) -> ColumnTransformer:
     feature_columns = [column for column in frame.columns if column not in NON_FEATURE_COLUMNS]
-    categorical = [column for column in feature_columns if frame[column].dtype == "object"]
+    categorical = [column for column in feature_columns if _is_categorical(frame[column])]
     numeric = [column for column in feature_columns if column not in categorical]
-    return ColumnTransformer(
-        [
-            (
-                "numeric",
-                SimpleImputer(strategy="median", keep_empty_features=True),
-                numeric,
-            ),
+    transformers = [
+        (
+            "numeric",
+            SimpleImputer(strategy="median", keep_empty_features=True),
+            numeric,
+        )
+    ]
+    if categorical:
+        transformers.append(
             (
                 "categorical",
                 Pipeline(
@@ -49,10 +63,9 @@ def _make_preprocessor(frame: pd.DataFrame) -> ColumnTransformer:
                     ]
                 ),
                 categorical,
-            ),
-        ],
-        verbose_feature_names_out=False,
-    )
+            )
+        )
+    return ColumnTransformer(transformers, verbose_feature_names_out=False)
 
 
 def _make_models(train_labels: pd.Series, random_state: int) -> dict[str, object]:
